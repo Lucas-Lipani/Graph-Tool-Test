@@ -4,14 +4,15 @@ from graph_tool.all import *
 import gi
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk
+import sys
 
 # Carregar spaCy
 nlp = spacy.load("en_core_web_sm")
 
 # Carregar o DataFrame
 df = pd.read_parquet("wos_sts_journals.parquet")
-# print(df.columns)
-# exit
+# print(len(df))
+# sys.exit()
 
 # Criar o grafo
 g = Graph(directed=False)
@@ -35,15 +36,11 @@ for index, row in df.iterrows():
 
     doc = nlp(row["abstract"])
 
-    # print("o titulo ",index," = ",row["title"])
-    # print("")
-    # print("o resumo ", row["abstract"])
-
     # Iterar pelos termos no texto processado
     for termo in doc:
         if not termo.is_stop and not termo.is_punct:
             # Verificar se o termo já existe no grafo
-            existing_vertices = [v for v in g.vertices() if g.vp["name"][v] == termo.text] # AUMENTAR A COMPLEXIDADE DO IF AUMENTA A EFICIÊNCIA DO CÓDIGO?(IF not document)  DUVIDA PARA LARGA ESCALA EU ENTENDO A COMPLEXIDADE COMO O(1) PARA IF
+            existing_vertices = [v for v in g.vertices() if g.vp["name"][v] == termo.text] 
  
             if existing_vertices:
                 v2 = existing_vertices[0]
@@ -59,17 +56,6 @@ for index, row in df.iterrows():
                 edge_weight[e] = 1
             else:
                 edge_weight[g.edge(v1, v2)] += 1
-
-# # Verificar os vértices do tipo "Document"
-# print(f"Total de vértices final: {g.num_vertices()}")
-# print(f"Total de arestas final: {g.num_edges()}")
-
-# print("\nVértices do tipo 'Document':")
-# for v in g.vertices():
-#     if g.vp["tipo"][v] == "Document":
-#         print(f"ID: {int(v)}, Nome: {g.vp['name'][v]}")
-
-
 
 
 from graph_tool.draw import sfdp_layout, graph_draw
