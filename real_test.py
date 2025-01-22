@@ -5,80 +5,121 @@ import gi
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk
 
-
-# Carregar o modelo spaCy
+# Carregar spaCy
 nlp = spacy.load("en_core_web_sm")
 
 # Carregar o DataFrame
 df = pd.read_parquet("wos_sts_journals.parquet")
-
-# # Selecionar uma amostra
-df_sample = df.sample(n=100, random_state=42)  # Ajuste para testar rapidamente
-
-# Processar a coluna "abstract" para extrair entidades
-def extract_entities(text):
-    if pd.isna(text):
-        return []
-    doc = nlp(text)
-    return [(ent.text, ent.label_) for ent in doc.ents]
-
-# Aplicar a extração de entidades à coluna "abstract"
-df_sample["entities"] = df_sample["abstract"].apply(extract_entities)
+# print(df.columns)
+# exit
 
 # Criar o grafo
 g = Graph(directed=False)
-vertex_map = {}  # Mapeia entidades para vértices
 
-# Propriedades para os nós e arestas
-vertex_name = g.new_vertex_property("string")
+# Definir propriedades
+name_prop = g.new_vertex_property("string")
+tipo_prop = g.new_vertex_property("string")
 edge_weight = g.new_edge_property("int")
+g.vp["name"] = name_prop
+g.vp["tipo"] = tipo_prop
+g.ep["weight"] = edge_weight
 
-# Adicionar entidades como nós e coocorrências como arestas
-for entities in df_sample["entities"]:  # Itera sobre a lista de entidades extraídas de cada linha do DataFrame
-    for i, (ent1, label1) in enumerate(entities):  # Itera sobre cada entidade (ent1) e seu rótulo na lista
-        if ent1 not in vertex_map:  # Verifica se a entidade ent1 ainda não foi adicionada como nó
-            v = g.add_vertex()  # Cria um novo vértice no grafo
-            vertex_map[ent1] = v  # Mapeia o nome da entidade ao vértice criado
-            vertex_name[v] = ent1  # Define o nome da entidade como propriedade do vértice
+# # Selecionar uma amostra do DataFrame
+df = df.sample(n=20, random_state=42)
 
-        for j, (ent2, label2) in enumerate(entities):  # Itera novamente sobre as entidades para criar pares (ent1, ent2)
-            if i < j:  # Garante que cada par seja processado apenas uma vez (evita duplicação de arestas)
-                if ent2 not in vertex_map:  # Verifica se a entidade ent2 ainda não foi adicionada como nó
-                    v = g.add_vertex()  # Cria um novo vértice para a entidade ent2
-                    vertex_map[ent2] = v  # Mapeia o nome da entidade ent2 ao vértice criado
-                    vertex_name[v] = ent2  # Define o nome da entidade como propriedade do vértice
+# Iterar pelas linhas do DataFrame e adicionar vértices para os documentos
+for index, row in df.iterrows():
+    v1 = g.add_vertex()
+    g.vp["name"][v1] = row["title"]
+    g.vp["tipo"][v1] = "Document"
 
-                # Procura uma aresta entre os nós das entidades ent1 e ent2
-                e = g.edge(vertex_map[ent1], vertex_map[ent2], add_missing=True)
-                if e is None:  # Se a aresta não existir, cria uma nova aresta
-                    e = g.add_edge(vertex_map[ent1], vertex_map[ent2])
-                
-                edge_weight[e] += 1  # Incrementa o peso da aresta para contar coocorrências
+    doc = nlp(row["abstract"])
 
-# Associar as propriedades ao grafo
-g.vertex_properties["name"] = vertex_name
-g.edge_properties["weight"] = edge_weight
+    # print("o titulo ",index," = ",row["title"])
+    # print("")
+    # print("o resumo ", row["abstract"])
 
-from graph_tool.draw import graph_draw
+    # Iterar pelos termos no texto processado
+    for termo in doc:
+        if not termo.is_stop and not termo.is_punct:
+            # Verificar se o termo já existe no grafo
+            existing_vertices = [v for v in g.vertices() if g.vp["name"][v] == termo.text] # AUMENTAR A COMPLEXIDADE DO IF AUMENTA A EFICIÊNCIA DO CÓDIGO?(IF not document)  DUVIDA PARA LARGA ESCALA EU ENTENDO A COMPLEXIDADE COMO O(1) PARA IF
+ 
+            if existing_vertices:
+                v2 = existing_vertices[0]
+            else:
+                v2 = g.add_vertex()
+                g.vp["name"][v2] = termo.text
+                g.vp["tipo"][v2] = "Term"
+# TODO: Futuramente aproveitar a classe da entidade para organizar informações e como peso para as relações na montagem das comunidades
 
-# Desenhando o grafo em um arquivo PDF
+            # Verificar se existe uma aresta entre os vértices v1 e v2
+            if not g.edge(v1, v2):
+                e = g.add_edge(v1, v2)
+                edge_weight[e] = 1
+            else:
+                edge_weight[g.edge(v1, v2)] += 1
+
+# # Verificar os vértices do tipo "Document"
+# print(f"Total de vértices final: {g.num_vertices()}")
+# print(f"Total de arestas final: {g.num_edges()}")
+
+# print("\nVértices do tipo 'Document':")
+# for v in g.vertices():
+#     if g.vp["tipo"][v] == "Document":
+#         print(f"ID: {int(v)}, Nome: {g.vp['name'][v]}")
+
+
+
+
+from graph_tool.draw import sfdp_layout, graph_draw
+
+# Gerar posições para os vértices usando um layout por força, onde vértices mais conectados tendem a ficar no centro
+pos = sfdp_layout(g)
+# pos = sfdp_layout(g, eweight=g.ep["weight"])
+
+# Ajustar as cores e o tamanho dos vértices
+color_prop = g.new_vertex_property("vector<double>")
+size_prop = g.new_vertex_property("double")
+label_prop = g.new_vertex_property("string")
+# pos = g.new_vertex_property("vector<double>")
+
+for v in g.vertices():
+    if g.vp["tipo"][v] == "Document":
+        color_prop[v] = [1.0, 0.0, 0.0, 1.0]  # Vermelho (RGBA)
+        size_prop[v] = 20  # Tamanho maior para documentos
+        # pos[v] = (-1.0, float(int(v)))  # Coloca documentos à esquerda
+    else:
+        color_prop[v] = [0.0, 0.0, 1.0, 1.0]  # Azul (RGBA)
+        size_prop[v] = 10  # Tamanho menor para termos
+        # pos[v] = (1.0, float(int(v)))   # Coloca termos à direita
+
+    # Mostrar o ID do vértice como rótulo
+    label_prop[v] = str(int(v))
+
+# Desenhar o grafo
 graph_draw(
     g,
-    vertex_text=g.vertex_properties["name"],  # Nome das entidades nos vértices
-    vertex_font_size=10,
-    output_size=(800, 800),
-    output="text_graph.pdf"
+    pos=pos,
+    vertex_fill_color=color_prop,   # Define a cor dos vértices
+    vertex_size=size_prop,          # Define o tamanho dos vértices
+    vertex_text=label_prop,         # Define o rótulo dos vértices (ID)
+    vertex_font_size=8,             # Tamanho da fonte dos rótulos
+    output="text_graph_center.pdf"
 )
 
 #Inferindo comunidades usando o SBM de maneira mais simples possível
 state = minimize_blockmodel_dl(g)
 
-#Método para gerar um arquivo pdf para visualizar as comunidades geradas
+# Desenhar as comunidades inferidas com as per'sonalizações
 state.draw(
-    vertex_text=g.vertex_properties["name"],  # Nome das entidades nos vértices
-    vertex_font_size=10,
-    output="text_graph-sbm.pdf"
-    )
+    vertex_fill_color=color_prop,   # Define a cor dos vértices
+    vertex_size=size_prop,          # Define o tamanho dos vértices
+    vertex_text=label_prop,         # Define o rótulo dos vértices (ID)
+    vertex_font_size=8,             # Tamanho da fonte dos rótulos
+    output_size=(800, 800),         # Tamanho da saída
+    output="text_graph_sbm.pdf"     # Arquivo PDF de saída
+)
 
 from matplotlib.pyplot import matshow, savefig  # Importar as funções para visualização
 
@@ -140,16 +181,3 @@ print(f"Nível 2: O bloco anterior foi agrupado no bloco {r}")
 # - Nível 2 (e níveis superiores): Os blocos continuam sendo agrupados, eventualmente
 #   formando uma única comunidade no nível mais alto. Esse nível reflete a visão mais geral
 #   do grafo como um todo.
-
-import numpy as np
-
-state = minimize_nested_blockmodel_dl(g)
-
-S1 = state.entropy()
-
-for i in range(1000): # this should be sufficiently large
-    state.multiflip_mcmc_sweep(beta=np.inf, niter=10)
-
-S2 = state.entropy()
-
-print("Improvement:", S2 - S1)
