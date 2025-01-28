@@ -7,6 +7,7 @@ from gi.repository import Gtk
 import sys
 from matplotlib.pyplot import matshow, savefig  # Importar as funções para visualização
 from graph_tool.draw import sfdp_layout, graph_draw
+from tqdm import tqdm
 
 def initialize_graph():
     # Criar o grafo
@@ -31,7 +32,7 @@ def initialize_graph():
 def build_graph(g, df, nlp):
 
     # Iterar pelas linhas do DataFrame e adicionar vértices para os documentos
-    for _,row in df.iterrows():
+    for index,row in tqdm(df.iterrows(),desc="DF Interation", total=len(df)):
         v1 = g.add_vertex()
         g.vp["name"][v1] = row["title"]
         g.vp["tipo"][v1] = "Document"
@@ -39,10 +40,10 @@ def build_graph(g, df, nlp):
         doc = nlp(row["abstract"])
 
         # Iterar pelos termos no texto processado
-        for termo in doc:
+        for termo in tqdm(doc,desc=f"Processing Doc {index + 1}", leave = False):
             if not termo.is_stop and not termo.is_punct:
                 # Verificar se o termo já existe no grafo
-                existing_vertices = [v for v in g.vertices() if g.vp["name"][v] == termo.text] 
+                existing_vertices = [v for v in tqdm(g.vertices(),desc="Check Graph", total=g.num_vertices(), leave=False) if g.vp["name"][v] == termo.text] 
     
                 if existing_vertices:
                     v2 = existing_vertices[0]
@@ -58,13 +59,14 @@ def build_graph(g, df, nlp):
                     g.ep["weight"][e] = 1
                 else:
                     g.ep["weight"][g.edge(v1, v2)] += 1
+    
     return g
 
 def visualize_graph(g):
     # Gerar posições para os vértices usando um layout por força, onde vértices mais conectados tendem a ficar no centro
     pos = sfdp_layout(g)
 
-    for v in g.vertices():
+    for v in tqdm(g.vertices(), desc="Building Graph", total=g.num_vertices()):
         if g.vp["tipo"][v] == "Document":
             g.vp["color"][v] = [1.0, 0.0, 0.0, 1.0]  # Vermelho (RGBA)
             g.vp["size"][v] = 20  # Tamanho maior para documentos
@@ -171,7 +173,7 @@ def main():
     # print(df["abstract"].map(len))
     g = initialize_graph()
     # # Selecionar uma amostra do DataFrame
-    df = df.sample(n=20, random_state=42)
+    df = df.sample(n=200, random_state=42)
     g = build_graph(g,df,nlp)
     visualize_graph(g)
     # min_sbm(g)
