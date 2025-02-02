@@ -8,6 +8,7 @@ import sys
 from matplotlib.pyplot import matshow, savefig  # Importar as funções para visualização
 from graph_tool.draw import sfdp_layout, graph_draw
 from tqdm import tqdm
+import time 
 
 def initialize_graph():
     # Criar o grafo
@@ -30,12 +31,13 @@ def initialize_graph():
     return g
 
 def build_graph(g, df, nlp):
-
+    map_termos = {}
     # Iterar pelas linhas do DataFrame e adicionar vértices para os documentos
     for index,row in tqdm(df.iterrows(),desc="DF Interation", total=len(df)):
         v1 = g.add_vertex()
         g.vp["name"][v1] = row["title"]
         g.vp["tipo"][v1] = "Document"
+        map_termos[row["title"]] = v1
 
         doc = nlp(row["abstract"])
 
@@ -43,15 +45,13 @@ def build_graph(g, df, nlp):
         for termo in tqdm(doc,desc=f"Processing Doc {index + 1}", leave = False):
             if not termo.is_stop and not termo.is_punct:
                 # Verificar se o termo já existe no grafo
-                existing_vertices = [v for v in tqdm(g.vertices(),desc="Check Graph", total=g.num_vertices(), leave=False) if g.vp["name"][v] == termo.text] 
-    
-                if existing_vertices:
-                    v2 = existing_vertices[0]
+                if termo.text in map_termos:
+                    v2 = map_termos[termo.text]
                 else:
-                    v2 = g.add_vertex()
-                    g.vp["name"][v2] = termo.text
+                    v2 = g.add_vertex()                
+                    g.vp['name'][v2] = termo.text
                     g.vp["tipo"][v2] = "Term"
-    # TODO: Futuramente aproveitar a classe da entidade para organizar informações e como peso para as relações na montagem das comunidades
+                    map_termos[termo.text] = v2
 
                 # Verificar se existe uma aresta entre os vértices v1 e v2
                 if not g.edge(v1, v2):
@@ -66,7 +66,9 @@ def visualize_graph(g):
     # Gerar posições para os vértices usando um layout por força, onde vértices mais conectados tendem a ficar no centro
     pos = sfdp_layout(g)
 
-    for v in tqdm(g.vertices(), desc="Building Graph", total=g.num_vertices()):
+    vertices = list(g.vertices())
+
+    for v in tqdm(vertices, desc="Building Graph", total=len(vertices)):
         if g.vp["tipo"][v] == "Document":
             g.vp["color"][v] = [1.0, 0.0, 0.0, 1.0]  # Vermelho (RGBA)
             g.vp["size"][v] = 20  # Tamanho maior para documentos
@@ -165,7 +167,7 @@ def nested_sbm(g):
     #   do grafo como um todo.
 
 def main():
-
+    start_time = time.time()
     # Carregar spaCy
     nlp = spacy.load("en_core_web_sm")
     # Carregar o DataFrame
@@ -179,6 +181,7 @@ def main():
     # min_sbm(g)
     # edge_matrix()
     # nested_sbm(g)
+    print(f"\n\nO tempo total de execução desse código foi de :{time.time() - start_time:.2f} segundos")
 
 if __name__ == "__main__":
     main()
