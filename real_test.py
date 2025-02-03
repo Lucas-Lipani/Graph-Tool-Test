@@ -176,6 +176,7 @@ def main():
     g = initialize_graph()
     # # Selecionar uma amostra do DataFrame
     df = df.sample(n=200, random_state=42)
+    
     g = build_graph(g,df,nlp)
     visualize_graph(g)
     # min_sbm(g)
