@@ -51,6 +51,14 @@ Several optimizations were introduced to improve performance, such as:
 - Implementing a dictionary-based lookup system to check if a term already exists in the graph, reducing redundancy.
 - Using the **TQDM** library to monitor execution time in iterative loops, ensuring better performance tracking.
 
+## Results 
+
+So far, we have obtained some interesting results, as shown in the following sequence.
+
+The first image illustrates the time required to run the code without using a dictionary. In contrast, the second image demonstrates the performance improvement achieved by using a dictionary and disabling graph visualization.
+
+![First Image](./images/image01.png)
+![Second Image](./images/image02.png)
 
 ## Future Directions
 - [x] Theoretical clarifications and guidance on the project's methodology.
