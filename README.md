@@ -1,4 +1,4 @@
-# Resume: Domain-Topic Models with Chained Dimensions
+# Resume: Tremplin Recherche - GraphTools Test
 
 ## Project Overview
 This project extends Gerlach's study on the application of the Stochastic Block Model (SBM) in organizing and classifying written text. The study highlights the growing importance of statistical methods in handling large volumes of digital content. [Read the study](https://www.science.org/doi/10.1126/sciadv.aaq1360).
@@ -18,10 +18,20 @@ The Bayesian method updates prior knowledge using observed data through Bayes' t
 $$
 P(\text{hypothesis | data}) = \frac{P(\text{data | hypothesis}) \cdot P(\text{hypothesis})}{P(\text{data})}
 $$
-**Components:**
-- **Prior**: Initial belief about a hypothesis.
-- **Likelihood**: Probability of data given a hypothesis.
-- **Posterior**: Updated belief after observing data.
+
+### Components:
+
+- **Prior (*P(hypothesis)*)**:  
+  Represents the knowledge or beliefs about the hypothesis before observing the data.
+
+- **Evidence (*P(data)*)**:  
+  The probability of the observed data across all possible hypotheses.
+
+- **Likelihood (*P(data | hypothesis)*)**:  
+  Measures how likely it is to observe the data given a specific hypothesis.
+
+- **Posterior Distribution (*P(hypothesis | data)*)**:  
+  Updates the prior in light of new data, resulting in the "new belief" about the hypothesis.
 
 ### 4. Bayesian Model Comparison
 Bayesian reasoning simplifies model comparison by focusing on relative evidence. The Bayes Factor quantifies how well one model explains the data relative to another:
@@ -33,13 +43,13 @@ $$
 ### 5. Bayesian SBM
 Bayesian SBM improves traditional SBM by integrating prior knowledge about intra-community connections. It optimally determines the number of communities, balancing model complexity and data fit.
 
-### 6. Markov Chain Monte Carlo (MCMC)
-MCMC methods, such as Metropolis-Hastings and Gibbs Sampling, efficiently approximate posterior distributions when direct computation is impractical. These methods help estimate parameters in Bayesian SBM.
+<!-- ### 6. Markov Chain Monte Carlo (MCMC)
+MCMC methods, such as Metropolis-Hastings and Gibbs Sampling, efficiently approximate posterior distributions when direct computation is impractical. These methods help estimate parameters in Bayesian SBM. -->
 
-### 7. Domain Chained Model
+### 6. Domain Chained Model
 A probabilistic framework that structures relationships within domains hierarchically, reflecting dependencies between dimensions.
 
-### 8. Case Study
+# Case Study
 To apply the theoretical concepts discussed above and to ensure a deeper understanding of the project, a simple SBM implementation was developed using a corpus of articles.
 
 ## Project Evolution
