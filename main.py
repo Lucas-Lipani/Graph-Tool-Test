@@ -1,5 +1,6 @@
 import spacy
 import pandas as pd
+import numpy as np
 from graph_tool.all import *
 import gi
 gi.require_version('Gtk', '4.0')
@@ -75,7 +76,6 @@ def visualize_graph(g):
         else:
             g.vp["color"][v] = [0.0, 0.0, 1.0, 1.0]  # Azul (RGBA)
             g.vp["size"][v] = 10  # Tamanho menor para termos
-            # pos[v] = (1.0, float(int(v)))   # Coloca termos à direita
 
         # Mostrar o ID do vértice como rótulo
         g.vp["label"][v] = str(int(v))
@@ -91,21 +91,23 @@ def visualize_graph(g):
         output="text_graph_center.pdf"
     )
 
-def min_sbm(g, color_prop, size_prop, label_prop):
+def min_sbm(g):
     #Inferindo comunidades usando o SBM de maneira mais simples possível
     state = minimize_blockmodel_dl(g)
 
     # Desenhar as comunidades inferidas com as per'sonalizações
     state.draw(
-        vertex_fill_color=color_prop,   # Define a cor dos vértices
-        vertex_size=size_prop,          # Define o tamanho dos vértices
-        vertex_text=label_prop,         # Define o rótulo dos vértices (ID)
+        vertex_fill_color=g.vp["color"],   # Define a cor dos vértices
+        vertex_size=g.vp["size"],          # Define o tamanho dos vértices
+        vertex_text=g.vp["label"],         # Define o rótulo dos vértices (ID)
         vertex_font_size=8,             # Tamanho da fonte dos rótulos
         output_size=(800, 800),         # Tamanho da saída
         output="text_graph_sbm.pdf"     # Arquivo PDF de saída
     )
 
-def edge_matrix():
+    return state
+
+def edge_matrix(state):
     # Reorganizar os nós para garantir que estejam em ordem contígua
     b = contiguous_map(state.get_blocks())  # Use contiguous_map diretamente
     state = state.copy(b=b)  # Cria uma cópia do estado com blocos reorganizados
@@ -147,7 +149,7 @@ def nested_sbm(g):
 
     # Nível 0: Bloco ao qual o nó 33 pertence na partição mais detalhada
     r = levels[0].get_blocks()[33]  # `get_blocks()` retorna a atribuição de blocos para cada nó no nível 0
-    print(f"Nível 0: O nó 33 pertence ao bloco {r}")
+    print(f"\n\nNível 0: O nó 33 pertence ao bloco {r}")
 
     # Nível 1: Bloco ao qual o bloco de nível 0 foi agrupado
     r = levels[1].get_blocks()[r]  # Atribuição do bloco de nível superior para o bloco do nível 0
@@ -155,7 +157,7 @@ def nested_sbm(g):
 
     # Nível 2: Bloco ao qual o bloco de nível 1 foi agrupado
     r = levels[2].get_blocks()[r]  # Atribuição do bloco de nível superior para o bloco do nível 1
-    print(f"Nível 2: O bloco anterior foi agrupado no bloco {r}")
+    print(f"Nível 2: O bloco anterior foi agrupado no bloco {r}\n")
 
     # Discussão sobre o que esperar:
     # - Nível 0: A partição mais detalhada, com o maior número de blocos. 
@@ -165,6 +167,17 @@ def nested_sbm(g):
     # - Nível 2 (e níveis superiores): Os blocos continuam sendo agrupados, eventualmente
     #   formando uma única comunidade no nível mais alto. Esse nível reflete a visão mais geral
     #   do grafo como um todo.
+    return state
+
+def refine_mcmc(state_nested):
+    S1 = state_nested.entropy()
+
+    for i in tqdm(range(1000), desc="Refining", total=1000): # Esse alcance deve ser suficientemente grande
+        state_nested.multiflip_mcmc_sweep(beta=np.inf, niter=10)
+
+    S2 = state_nested.entropy()
+
+    print("Improvement:", S2 - S1)
 
 def main():
     start_time = time.time()
@@ -179,10 +192,11 @@ def main():
     
     g = build_graph(g,df,nlp)
     visualize_graph(g)
-    # min_sbm(g)
-    # edge_matrix()
-    # nested_sbm(g)
-    print(f"\n\nO tempo total de execução desse código foi de :{time.time() - start_time:.2f} segundos")
+    state = min_sbm(g)
+    edge_matrix(state)
+    state_nested = nested_sbm(g)
+    refine_mcmc(state_nested)
+    print(f"\nO tempo total de execução desse código foi de :{time.time() - start_time:.2f} segundos")
 
 if __name__ == "__main__":
     main()
