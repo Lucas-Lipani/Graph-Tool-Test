@@ -144,7 +144,7 @@ def edge_matrix(state, fig_name, g):
     # Imprimir o número de vértices em cada grupo
     for i, size in enumerate(block_sizes):
         # Identificar quais tipos de vértices estão presentes no bloco
-        block_vertices = [v for v in range(len(state.get_blocks().a)) if state.get_blocks().a[v] == i]
+        block_vertices = [v for v in range(len(state.get_blocks().a)) if state.get_blocks().a[v] == i] # Cria uma lista com os índices dos vértices que pertencem ao bloco de índice 'i'
         terms = sum(1 for v in block_vertices if g.vp["tipo"][g.vertex(v)] == "Term")
         docs = sum(1 for v in block_vertices if g.vp["tipo"][g.vertex(v)] == "Document")
         
