@@ -123,7 +123,7 @@ def min_sbm_wew(g):
 
     return state
 
-def edge_matrix(state, fig_name):
+def edge_matrix(state, fig_name, g):
     # Reorganizar os nós para garantir que estejam em ordem contígua
     b = contiguous_map(state.get_blocks())  # Use contiguous_map diretamente
     state = state.copy(b=b)  # Cria uma cópia do estado com blocos reorganizados
@@ -133,11 +133,32 @@ def edge_matrix(state, fig_name):
 
     # Número de blocos não vazios
     B = state.get_nonempty_B()  # Retorna o número de blocos que contêm vértices
+    print(f"O grafo possui {B} comunidades.")
 
     # Visualizar a matriz de contagem de arestas
-    from matplotlib.pyplot import matshow, savefig
     matshow(e.todense()[:B, :B])  # Converte para matriz densa e visualiza os blocos não vazios
     savefig(fig_name)  # Salva a matriz visualizada como SVG
+
+    #Visualizar quanto vértices tem em cada bloco
+    block_sizes = np.bincount(state.get_blocks().a)
+    # Imprimir o número de vértices em cada grupo
+    for i, size in enumerate(block_sizes):
+        # Identificar quais tipos de vértices estão presentes no bloco
+        block_vertices = [v for v in range(len(state.get_blocks().a)) if state.get_blocks().a[v] == i]
+        terms = sum(1 for v in block_vertices if g.vp["tipo"][g.vertex(v)] == "Term")
+        docs = sum(1 for v in block_vertices if g.vp["tipo"][g.vertex(v)] == "Document")
+        
+        if terms > 0 and docs > 0:
+            group_type = "Ambos"
+        elif terms > 0:
+            group_type = "Termo"
+        elif docs > 0:
+            group_type = "Documento"
+        else:
+            group_type = "Desconhecido"
+
+        print(f"O grupo {i} possui {size} vértices e é classificado como {group_type}.")
+
 
 def nested_sbm(g):
     # Nested SBM
@@ -146,11 +167,6 @@ def nested_sbm(g):
         output="text-hsbm-fit.svg"
         )
 
-    # Resumo da hierarquia inferida
-    # Este método imprime informações sobre cada nível hierárquico, incluindo:
-    # - Número de vértices (N)
-    # - Número de blocos (B) (comunidades não vazias)
-    # - Estatísticas da estrutura do grafo em cada nível
     state.print_summary()
 
     # Obter os níveis hierárquicos do SBM
@@ -159,9 +175,6 @@ def nested_sbm(g):
         print(s)  # Exibe informações detalhadas sobre o nível atual
         if s.get_N() == 1:  # Se o nível tiver apenas 1 bloco, a hierarquia chegou ao nível mais alto
             break  # Interrompe a iteração, pois não há mais subdivisões a explorar
-
-    # Inspecionar a partição hierárquica
-    # Neste exemplo, analisaremos a comunidade do nó 33 em diferentes níveis da hierarquia.
 
     # Nível 0: Bloco ao qual o nó 33 pertence na partição mais detalhada
     r = levels[0].get_blocks()[33]  # `get_blocks()` retorna a atribuição de blocos para cada nó no nível 0
@@ -175,14 +188,6 @@ def nested_sbm(g):
     r = levels[2].get_blocks()[r]  # Atribuição do bloco de nível superior para o bloco do nível 1
     print(f"Nível 2: O bloco anterior foi agrupado no bloco {r}\n")
 
-    # Discussão sobre o que esperar:
-    # - Nível 0: A partição mais detalhada, com o maior número de blocos. 
-    #   Espera-se que os blocos representem comunidades finas baseadas em conexões locais.
-    # - Nível 1: Os blocos de nível 0 foram agrupados em comunidades maiores. 
-    #   Este nível pode capturar conexões entre comunidades vizinhas.
-    # - Nível 2 (e níveis superiores): Os blocos continuam sendo agrupados, eventualmente
-    #   formando uma única comunidade no nível mais alto. Esse nível reflete a visão mais geral
-    #   do grafo como um todo.
     return state
 
 def nested_sbm_wew(g):
@@ -231,7 +236,7 @@ def nested_sbm_wew(g):
     #   do grafo como um todo.
     return state
 
-def refine_mcmc(state_nested):
+def refine_mcmc(state_nested, g):
     S1 = state_nested.entropy()
 
     for i in tqdm(range(1000), desc="Refining", total=1000): # Esse alcance deve ser suficientemente grande
@@ -241,26 +246,28 @@ def refine_mcmc(state_nested):
 
     print("Improvement:", S2 - S1)
 
+    g.mcmc_anneal(state_nested, beta_range=(1, 10), niter=1000, mcmc_equilibrate_args=dict(force_niter=10))
+
 def main():
     start_time = time.time()
     # Carregar spaCy
     nlp = spacy.load("en_core_web_sm")
     # Carregar o DataFrame
     df = pd.read_parquet("wos_sts_journals.parquet")
-    # print(df["abstract"].map(len))
     g = initialize_graph()
-    # # Selecionar uma amostra do DataFrame
-    df = df.sample(n=200, random_state=42)
+    # Selecionar uma amostra do DataFrame
+    df = df.sample(n=100, random_state=42)
     g = build_graph(g,df,nlp)
+    print(g)
     visualize_graph(g)
-    state = min_sbm(g)
+    # state = min_sbm(g)
     state_wew = min_sbm_wew(g)
-    edge_matrix(state, "text-edge-counts.svg")
-    edge_matrix(state_wew, "text-edge-counts_wew.svg")
-    state_nested = nested_sbm(g)
+    # # edge_matrix(state, "text-edge-counts.svg")
+    edge_matrix(state_wew, "text-edge-counts_wew.svg", g)
+    # # state_nested = nested_sbm(g)
     state_nested_wew = nested_sbm_wew(g)
-    refine_mcmc(state_nested)
-    refine_mcmc(state_nested_wew)
+    # # refine_mcmc(state_nested)
+    refine_mcmc(state_nested_wew, g)
 
     print(f"\nO tempo total de execução desse código foi de :{time.time() - start_time:.2f} segundos")
 
