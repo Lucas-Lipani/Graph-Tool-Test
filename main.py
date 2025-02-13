@@ -197,11 +197,11 @@ def nested_sbm(g):
 
     return state
 
-def nested_sbm_wew(g):
+def nested_sbm_wew(g, output_name):
     # Nested SBM
     state = minimize_nested_blockmodel_dl(g, state_args={"eweight": g.ep["weight"]})
     state.draw(bg_color='white',
-        output="outputs/text-nsbm-fit-wew.svg"
+        output=output_name
         )
 
     # Resumo da hierarquia inferida
@@ -288,9 +288,9 @@ def main():
     #Matriz de arestas entre os blocos do grafo original
     edge_matrix(state_wew, "outputs/text-edge-counts_wew.svg", g)
     #Aplicação do Nested SBM para o grafo original
-    state_nested_wew = nested_sbm_wew(g)
+    state_nested_wew = nested_sbm_wew(g, "outputs/text-nsbm-graph_wew.svg")
     #Aplicação do Nested SBM para o grafo de blocos
-    state_nested_wew = nested_sbm_wew(block_graph)
+    state_nested_wew = nested_sbm_wew(block_graph, "outputs/text-nsbm-block_graph.svg")
     #Refinamento do state do Nested SBM
     refine_mcmc(state_nested_wew, g)
 
