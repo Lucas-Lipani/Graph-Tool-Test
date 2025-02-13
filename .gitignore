@@ -1,8 +1,9 @@
 /1st_attempt
+/outputs
 output_profile_20.txt
 output_profile.txt
 old_test.py
 
-*.pdf
-*.svg
+/outpus/*.pdf
+/outpus/*.svg
 *.parquet

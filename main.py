@@ -31,6 +31,10 @@ def initialize_graph():
 
     return g
 
+def build_block_graph():
+    #ESSA FUNÇÃO CONCENTRARÁ TODAS AS TRATATIVAS PARA O GRAFO DE BLOCOS
+    return 0
+
 def build_graph(g, df, nlp):
     map_termos = {}
     # Iterar pelas linhas do DataFrame e adicionar vértices para os documentos
@@ -63,7 +67,7 @@ def build_graph(g, df, nlp):
     
     return g
 
-def visualize_graph(g):
+def visualize_graph(g, graph_name):
     # Gerar posições para os vértices usando um layout por força, onde vértices mais conectados tendem a ficar no centro
     pos = sfdp_layout(g)
 
@@ -88,28 +92,30 @@ def visualize_graph(g):
         vertex_size=g.vp["size"],          # Define o tamanho dos vértices
         vertex_text=g.vp["label"],         # Define o rótulo dos vértices (ID)
         vertex_font_size=8,             # Tamanho da fonte dos rótulos
-        output="text_graph_center.pdf"
+        output=graph_name
     )
 
-def min_sbm(g):
-    #Inferindo comunidades usando o SBM de maneira mais simples possível
-    state = minimize_blockmodel_dl(g)
+def visualize_graph_bl(g, graph_name):
+    # Gerar posições para os vértices usando um layout por força, onde vértices mais conectados tendem a ficar no centro
+    pos = sfdp_layout(g)
 
-    # Desenhar as comunidades inferidas com as per'sonalizações
-    state.draw(
-        vertex_fill_color=g.vp["color"],   # Define a cor dos vértices
-        vertex_size=g.vp["size"],          # Define o tamanho dos vértices
-        vertex_text=g.vp["label"],         # Define o rótulo dos vértices (ID)
-        vertex_font_size=8,             # Tamanho da fonte dos rótulos
-        output_size=(800, 800),         # Tamanho da saída
-        output="text_graph_sbm.pdf"     # Arquivo PDF de saída
+    # Desenhar o grafo
+    graph_draw(
+        g,
+        pos=pos,
+        output=graph_name
     )
 
-    return state
 
 def min_sbm_wew(g):
-    #Inferindo comunidades usando o SBM de maneira mais simples possível
+    # # Se não for passado um argumento, mas o grafo tem pesos, definir state_args automaticamente
+    # if state_args is None and "weight" in g.ep:
+    #     state_args = {"eweight": g.ep["weight"]}
+    
+    # #Inferindo comunidades usando o SBM de maneira mais simples possível
+    # state = minimize_blockmodel_dl(g, **(state_args or {}))
     state = minimize_blockmodel_dl(g, state_args={"eweight": g.ep["weight"]})
+
 
     # Desenhar as comunidades inferidas com as per'sonalizações
     state.draw(
@@ -118,10 +124,11 @@ def min_sbm_wew(g):
         vertex_text=g.vp["label"],         # Define o rótulo dos vértices (ID)
         vertex_font_size=8,             # Tamanho da fonte dos rótulos
         output_size=(800, 800),         # Tamanho da saída
-        output="text_graph_sbm_wew.pdf"     # Arquivo PDF de saída
+        output="outputs/text_graph_sbm_wew.pdf"     # Arquivo PDF de saída
     )
 
     return state
+
 
 def edge_matrix(state, fig_name, g):
     # Reorganizar os nós para garantir que estejam em ordem contígua
@@ -133,15 +140,15 @@ def edge_matrix(state, fig_name, g):
 
     # Número de blocos não vazios
     B = state.get_nonempty_B()  # Retorna o número de blocos que contêm vértices
-    print(f"O grafo possui {B} comunidades.")
+    # print(f"O grafo possui {B} comunidades.")
 
     # Visualizar a matriz de contagem de arestas
     matshow(e.todense()[:B, :B])  # Converte para matriz densa e visualiza os blocos não vazios
     savefig(fig_name)  # Salva a matriz visualizada como SVG
 
-    #Visualizar quanto vértices tem em cada bloco
+    #Retorna quantos vértices tem em cada bloco
     block_sizes = np.bincount(state.get_blocks().a)
-    # Imprimir o número de vértices em cada grupo
+    # Imprimir o número de vértices em cada grupo e qual o tipo dos vertices que estão nele
     for i, size in enumerate(block_sizes):
         # Identificar quais tipos de vértices estão presentes no bloco
         block_vertices = [v for v in range(len(state.get_blocks().a)) if state.get_blocks().a[v] == i] # Cria uma lista com os índices dos vértices que pertencem ao bloco de índice 'i'
@@ -164,7 +171,7 @@ def nested_sbm(g):
     # Nested SBM
     state = minimize_nested_blockmodel_dl(g)
     state.draw(bg_color='white',
-        output="text-hsbm-fit.svg"
+        output="outputs/text-nsbm-fit.svg"
         )
 
     state.print_summary()
@@ -194,7 +201,7 @@ def nested_sbm_wew(g):
     # Nested SBM
     state = minimize_nested_blockmodel_dl(g, state_args={"eweight": g.ep["weight"]})
     state.draw(bg_color='white',
-        output="text-hsbm-fit-wew.svg"
+        output="outputs/text-nsbm-fit-wew.svg"
         )
 
     # Resumo da hierarquia inferida
@@ -246,7 +253,7 @@ def refine_mcmc(state_nested, g):
 
     print("Improvement:", S2 - S1)
 
-    g.mcmc_anneal(state_nested, beta_range=(1, 10), niter=1000, mcmc_equilibrate_args=dict(force_niter=10))
+    # g.mcmc_anneal(state_nested, beta_range=(1, 10), niter=1000, mcmc_equilibrate_args=dict(force_niter=10))
 
 def main():
     start_time = time.time()
@@ -256,17 +263,35 @@ def main():
     df = pd.read_parquet("wos_sts_journals.parquet")
     g = initialize_graph()
     # Selecionar uma amostra do DataFrame
-    df = df.sample(n=100, random_state=42)
+    df = df.sample(n=300, random_state=42)
+    #Construção do grafo
     g = build_graph(g,df,nlp)
     print(g)
-    visualize_graph(g)
-    # state = min_sbm(g)
+    visualize_graph(g, "outputs/text_graph_center.pdf")
+    #Aplicação do sbm com a propriedade de peso nas arestas
     state_wew = min_sbm_wew(g)
-    # # edge_matrix(state, "text-edge-counts.svg")
-    edge_matrix(state_wew, "text-edge-counts_wew.svg", g)
-    # # state_nested = nested_sbm(g)
+    print(f"O grafo original possui {state_wew.get_B()} blocos após o SBM, sendo que {state_wew.get_nonempty_B()} não estão vazios.")
+    #Construção do grafo de blocos
+    block_graph = state_wew.get_bg()  
+    visualize_graph_bl(block_graph, "outputs/text_block_graph.pdf")
+    to_remove = [v for v in block_graph.vertices() if v.out_degree() == 0 and v.in_degree() == 0]
+    for v in reversed(to_remove):  # Remover de trás para frente evita problemas de indexação
+        block_graph.remove_vertex(v, fast=False)
+    print(block_graph)
+    visualize_graph_bl(block_graph, "outputs/text_block_graph_rv.pdf")
+    #Aplicação do SBM ao grafo de blocos
+    state_bg_rm = minimize_blockmodel_dl(block_graph)
+    state_bg_rm.draw(
+        output_size=(800, 800),         # Tamanho da saída
+        output="outputs/block_graph_sbm.pdf"     # Arquivo PDF de saída
+    )
+    #Matriz de arestas entre os blocos do grafo original
+    edge_matrix(state_wew, "outputs/text-edge-counts_wew.svg", g)
+    #Aplicação do Nested SBM para o grafo original
     state_nested_wew = nested_sbm_wew(g)
-    # # refine_mcmc(state_nested)
+    #Aplicação do Nested SBM para o grafo de blocos
+    state_nested_wew = nested_sbm_wew(block_graph)
+    #Refinamento do state do Nested SBM
     refine_mcmc(state_nested_wew, g)
 
     print(f"\nO tempo total de execução desse código foi de :{time.time() - start_time:.2f} segundos")
