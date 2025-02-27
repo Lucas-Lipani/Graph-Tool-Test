@@ -76,14 +76,14 @@ The first image illustrates the time required to run the code without using a di
 - [ ] Practical test using a corpus to establish Document-Word Set relationships.
 - [ ] Practical test using a corpus to establish Document-Semantic Meaning relationships.
 - [ ] Presentation of the project for module E4.
-- [ ] INTERFACE INTERATIVA
+- [ ] Interactive Interface: Web-based interface with hover-triggered information display.
 - [ ] **Performance Improvements:**
   - [ ] Optimization of topic fixation. (Probability)
 - [ ] **Interface Improvements:**
   - [ ] Interface allowing users to modify elements within a block.
   - [ ] Generating logs of these modifications.
 - [ ] Analysis of Luiz Daniel’s code for corpus learning reuse.
-- [ ] ETIQUETAGEM DE TERMOS
+- [ ] Term Labeling: Use ontology-based term classification instead of raw term blocks.
 
 
 ---
