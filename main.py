@@ -35,8 +35,9 @@ def initialize_graph():
     return g
 
 def build_block_graph(block_graph, state, g):
+    block_graph = block_graph.copy() # Cópia para rodar o python iterativo
     # Visualizo o grafo de blocos antes das tratativas
-    visualize_graph_bl(block_graph, "outputs/text_block_graph_original.pdf")
+    # visualize_graph_bl(block_graph, "outputs/text_block_graph_original.pdf")
     
     # Definir propriedades block graph
     name_prop = block_graph.new_vertex_property("string")
@@ -59,36 +60,37 @@ def build_block_graph(block_graph, state, g):
 
     # Obter a atribuição de blocos original antes da limpeza
     blocks = state.get_blocks().a
-    block_sizes = np.bincount(blocks)
+    block_sizes = np.bincount(blocks)  
 
     # Criar um dicionário que associa cada bloco do grafo de blocos aos seus vértices no grafo original
     block_to_vertices = {}
     
     for i in range(len(block_sizes)):  # Iterar sobre os índices dos blocos
-        block_vertices = [v for v in range(len(state.get_blocks().a)) if state.get_blocks().a[v] == i]  
-        block_to_vertices[i] = block_vertices  # Salvar no dicionário
+        if(block_sizes[i] != 0):
+            block_vertices = [v for v in range(len(state.get_blocks().a)) if state.get_blocks().a[v] == i]  
+            block_to_vertices[i] = block_vertices  # Salvar no dicionário
 
-        terms = [
-            (g.vp["name"][g.vertex(v)], g.vp['amount'][g.vertex(v)]) 
-            for v in block_vertices if g.vp["tipo"][g.vertex(v)] == 1
-        ]
-        docs = sum(1 for v in block_vertices if g.vp["tipo"][g.vertex(v)] == 0)
+            terms = [
+                (g.vp["name"][g.vertex(v)], g.vp['amount'][g.vertex(v)]) 
+                for v in block_vertices if g.vp["tipo"][g.vertex(v)] == 1
+            ]
+            docs = sum(1 for v in block_vertices if g.vp["tipo"][g.vertex(v)] == 0)
+            
+            block_graph.vp["nvertex"][i] = int(block_sizes[i])
+            
+            if terms and docs:
+                block_graph.vp["tipo"][i] = 11  # Ambos
+            elif terms:
+                block_graph.vp["tipo"][i] = 1  # Termos
+            elif docs:
+                block_graph.vp["tipo"][i] = 0  # Documentos
+            else:
+                block_graph.vp["tipo"][i] = 22  # Desconhecido
 
-        if terms and docs:
-            block_graph.vp["tipo"][i] = 11  # Ambos
-        elif terms:
-            block_graph.vp["tipo"][i] = 1  # Termos
-        elif docs:
-            block_graph.vp["tipo"][i] = 0  # Documentos
-        else:
-            block_graph.vp["tipo"][i] = 22  # Desconhecido
-
-        # Atualiza o nome do bloco para mostrar alguns termos (caso seja um bloco de termos)
-        if terms:
-            sorted_terms = sorted(terms, key=lambda x: x[1], reverse=True)
-            block_graph.vp["name"][i] = "|".join([name for name, _ in sorted_terms[:3]])  # Pega os 3 primeiros nomes
-            # print(block_graph.vp["name"][i])
-
+            # Atualiza o nome do bloco para mostrar alguns termos (caso seja um bloco de termos)
+            if terms:
+                sorted_terms = sorted(terms, key=lambda x: x[1], reverse=True)
+                block_graph.vp["name"][i] = "|".join([name for name, _ in sorted_terms[:3]])  # Pega os 3 primeiros nomes
 
     # Calcular a força das conexões entre blocos
     block_connections = {}  # Dicionário para armazenar a força das conexões entre blocos
@@ -112,20 +114,22 @@ def build_block_graph(block_graph, state, g):
             block_graph.ep["weight"][edge] = block_connections[key]  # Define o peso
 
         # Mapeamento para a largura das arestas (normalização para melhor visualização)
-        # print(block_graph.ep["weight"][edge], max(1.0, block_graph.ep["weight"][edge] / 75), max(1.0, (block_graph.ep["weight"][edge] ** 0.5) / 2), max(1.0, math.log1p(block_graph.ep["weight"][edge])))
-        block_graph.ep["weight"][edge] = max(1.0, block_graph.ep["weight"][edge] / 75) # Ajuste conforme necessário
+        # block_graph.ep["weight"][edge] = max(1.0, block_graph.ep["weight"][edge] / 75) # Ajuste conforme necessário
+        # print(block_graph.ep["weight"][edge])
 
     # Remove vértices vazios do grafo de blocos
     to_remove = [v for v in block_graph.vertices() if v.out_degree() == 0 and v.in_degree() == 0]
     for v in reversed(to_remove):  # Remover de trás para frente evita problemas de indexação
         block_graph.remove_vertex(v, fast=False)
-    visualize_graph(block_graph, "outputs/text_block_graph.pdf")
+    # visualize_graph(block_graph, "outputs/text_block_graph.pdf")
 
     vertices = list(block_graph.vertices())
-    for v in tqdm(vertices, desc="Building Block Graph SBM", total=len(vertices)):
+    # for v in tqdm(vertices, desc="Building Block Graph SBM", total=len(vertices)):
+    for v in vertices:
         if block_graph.vp["tipo"][v] == 0:  # Documento
             block_graph.vp["color"][v] = [1.0, 0.0, 0.0, 1.0]  # Vermelho (RGBA)
-            block_graph.vp["size"][v] = max(20, v.out_degree() * 10)
+            block_graph.vp["size"][v] =  block_graph.vp["nvertex"][v]  # max(20, v.out_degree() * 10)
+            
         else:  # Termo
             block_graph.vp["color"][v] = [0.0, 0.0, 1.0, 1.0]  # Azul (RGBA)
             block_graph.vp["size"][v] = 10  # Tamanho menor para termos
@@ -137,9 +141,9 @@ def build_block_graph(block_graph, state, g):
     # Agora usamos a propriedade edge_pen_width na visualização
     state_bg.draw(
         pos=pos,
-        edge_pen_width=block_graph.ep["weight"],  # Usa os pesos calculados para definir a largura das arestas
+        edge_pen_width= prop_to_size(block_graph.ep["weight"], mi=1, ma=35, power =1.0) ,  # Usa os pesos calculados para definir a largura das arestas block_graph.ep["weight"]
         vertex_fill_color=block_graph.vp["color"],  # Define a cor dos vértices
-        vertex_size=block_graph.vp["size"],  # Define o tamanho dos vértices
+        vertex_size=prop_to_size(block_graph.vp["size"], mi=20, ma=100),  # Define o tamanho dos vértices block_graph.vp["size"]
         vertex_text=block_graph.vp["name"],  # Exibe os rótulos dos vértices
         vertex_text_position = -2,
         vertex_text_color = 'black',
@@ -148,7 +152,7 @@ def build_block_graph(block_graph, state, g):
         output="outputs/text_block_graph_sbm.pdf"  # Arquivo PDF de saída
     )
 
-    return block_to_vertices
+    # return block_to_vertices
 
 def build_graph(g, df, nlp):
     map_termos = {}
@@ -351,7 +355,7 @@ def main():
     #Construção do grafo
     g = build_graph(g,df,nlp)
     print(g)
-    visualize_graph(g, "outputs/text_graph.pdf")
+    # visualize_graph(g, "outputs/text_graph.pdf")
     #Aplicação do sbm com a propriedade de peso nas arestas
     state_wew = min_sbm_wew(g)
 
@@ -379,4 +383,5 @@ def main():
     print(f"\nO tempo total de execução desse código foi de :{time.time() - start_time:.2f} segundos")
 
 # if __name__ == "__main__":
-#     main()
+#     main() 
+# %run -i -n main.py
