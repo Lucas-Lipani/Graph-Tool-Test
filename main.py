@@ -34,6 +34,41 @@ def initialize_graph():
 
     return g
 
+def build_graph(g, df, nlp):
+    map_termos = {}
+    # Iterar pelas linhas do DataFrame e adicionar vértices para os documentos
+    for index,row in tqdm(df.iterrows(),desc="DF Interation", total=len(df)):
+        v1 = g.add_vertex()
+        g.vp["name"][v1] = row["title"]
+        g.vp["tipo"][v1] = 0 #Documentos
+        map_termos[row["title"]] = v1
+        g.vp['amount'][v1] = 1
+
+        doc = nlp(row["abstract"])
+
+        # Iterar pelos termos no texto processado
+        for termo in tqdm(doc,desc=f"Processing Doc {index + 1}", leave = False):
+            if not termo.is_stop and not termo.is_punct:
+                # Verificar se o termo já existe no grafo
+                if termo.text in map_termos:
+                    g.vp['amount'][v2] += 1
+                    v2 = map_termos[termo.text]
+                else:
+                    v2 = g.add_vertex()
+                    g.vp['amount'][v2] = 1        
+                    g.vp['name'][v2] = termo.text
+                    g.vp["tipo"][v2] = 1 #Termos
+                    map_termos[termo.text] = v2
+
+                # Verificar se existe uma aresta entre os vértices v1 e v2
+                if not g.edge(v1, v2):
+                    e = g.add_edge(v1, v2)
+                    g.ep["weight"][e] = 1
+                else:
+                    g.ep["weight"][g.edge(v1, v2)] += 1
+    
+    return g
+
 def build_block_graph(block_graph, state, g):
     block_graph = block_graph.copy() # Cópia para rodar o python iterativo
     # Visualizo o grafo de blocos antes das tratativas
@@ -48,6 +83,7 @@ def build_block_graph(block_graph, state, g):
     size_prop = block_graph.new_vertex_property("double")
     label_prop = block_graph.new_vertex_property("string")
     vertex_shape = block_graph.new_vertex_property("string")
+    pos = block_graph.new_vertex_property("vector<double>")
     block_graph.vp["shape"] = vertex_shape
     block_graph.vp["color"] = color_prop
     block_graph.vp["size"] = size_prop
@@ -123,20 +159,25 @@ def build_block_graph(block_graph, state, g):
         block_graph.remove_vertex(v, fast=False)
     # visualize_graph(block_graph, "outputs/text_block_graph.pdf")
 
+    # Cria um layout manual
+    t = d = 0
     vertices = list(block_graph.vertices())
-    # for v in tqdm(vertices, desc="Building Block Graph SBM", total=len(vertices)):
-    for v in vertices:
+    for v in tqdm(vertices, desc="Building Block Graph SBM", total=len(vertices)):
         if block_graph.vp["tipo"][v] == 0:  # Documento
+            pos[v] = [-2, d]
+            d += 1
             block_graph.vp["color"][v] = [1.0, 0.0, 0.0, 1.0]  # Vermelho (RGBA)
             block_graph.vp["size"][v] =  block_graph.vp["nvertex"][v]  # max(20, v.out_degree() * 10)
             
         else:  # Termo
+            pos[v] = [2, t]
+            t += 1
             block_graph.vp["color"][v] = [0.0, 0.0, 1.0, 1.0]  # Azul (RGBA)
             block_graph.vp["size"][v] = 10  # Tamanho menor para termos
 
     # Aplicação do SBM ao grafo de blocos
     state_bg = minimize_blockmodel_dl(block_graph)
-    pos = sfdp_layout(block_graph)
+    # pos = sfdp_layout(block_graph)
 
     # Agora usamos a propriedade edge_pen_width na visualização
     state_bg.draw(
@@ -154,40 +195,6 @@ def build_block_graph(block_graph, state, g):
 
     # return block_to_vertices
 
-def build_graph(g, df, nlp):
-    map_termos = {}
-    # Iterar pelas linhas do DataFrame e adicionar vértices para os documentos
-    for index,row in tqdm(df.iterrows(),desc="DF Interation", total=len(df)):
-        v1 = g.add_vertex()
-        g.vp["name"][v1] = row["title"]
-        g.vp["tipo"][v1] = 0 #Documentos
-        map_termos[row["title"]] = v1
-        g.vp['amount'][v1] = 1
-
-        doc = nlp(row["abstract"])
-
-        # Iterar pelos termos no texto processado
-        for termo in tqdm(doc,desc=f"Processing Doc {index + 1}", leave = False):
-            if not termo.is_stop and not termo.is_punct:
-                # Verificar se o termo já existe no grafo
-                if termo.text in map_termos:
-                    g.vp['amount'][v2] += 1
-                    v2 = map_termos[termo.text]
-                else:
-                    v2 = g.add_vertex()
-                    g.vp['amount'][v2] = 1        
-                    g.vp['name'][v2] = termo.text
-                    g.vp["tipo"][v2] = 1 #Termos
-                    map_termos[termo.text] = v2
-
-                # Verificar se existe uma aresta entre os vértices v1 e v2
-                if not g.edge(v1, v2):
-                    e = g.add_edge(v1, v2)
-                    g.ep["weight"][e] = 1
-                else:
-                    g.ep["weight"][g.edge(v1, v2)] += 1
-    
-    return g
 
 def visualize_graph(g, graph_name):
     # Gerar posições para os vértices usando um layout por força, onde vértices mais conectados tendem a ficar no centro
@@ -358,7 +365,7 @@ def main():
     # visualize_graph(g, "outputs/text_graph.pdf")
     #Aplicação do sbm com a propriedade de peso nas arestas
     state_wew = min_sbm_wew(g)
-
+    
     print(f"O grafo original possui {state_wew.get_B()} blocos após o SBM, sendo que {state_wew.get_nonempty_B()} não estão vazios.")
     #Construção do grafo de blocos
 
