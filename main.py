@@ -45,6 +45,11 @@ def build_graph(g, df, nlp):
         g.vp['amount'][v1] = 1
 
         doc = nlp(row["abstract"])
+        # print(row['abstract'])
+        # for termo in doc:
+        #     print(dir(termo))
+        #     print(termo)
+        #     exit()
 
         # Iterar pelos termos no texto processado
         for termo in tqdm(doc,desc=f"Processing Doc {index + 1}", leave = False):
@@ -354,6 +359,7 @@ def main():
     start_time = time.time()
     # Carregar spaCy
     nlp = spacy.load("en_core_web_sm")
+    # nlp = spacy.load("en_core_web_lg")  # pacote de pipelines maior para uso do word2vector
     # Carregar o DataFrame
     df = pd.read_parquet("wos_sts_journals.parquet")
     g = initialize_graph()
@@ -390,5 +396,4 @@ def main():
     print(f"\nO tempo total de execução desse código foi de :{time.time() - start_time:.2f} segundos")
 
 # if __name__ == "__main__":
-#     main() 
-# %run -i -n main.py
+#     main()
