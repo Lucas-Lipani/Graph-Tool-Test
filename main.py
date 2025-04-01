@@ -24,6 +24,7 @@ def initialize_graph():
     color_prop = g.new_vertex_property("vector<double>")
     size_prop = g.new_vertex_property("double")
     label_prop = g.new_vertex_property("string")
+
     g.vp["color"] = color_prop
     g.vp["size"] = size_prop
     g.vp["amount"] = qtd_prop
@@ -89,6 +90,7 @@ def build_block_graph(block_graph, state, g):
     label_prop = block_graph.new_vertex_property("string")
     vertex_shape = block_graph.new_vertex_property("string")
     pos = block_graph.new_vertex_property("vector<double>")
+    
     block_graph.vp["shape"] = vertex_shape
     block_graph.vp["color"] = color_prop
     block_graph.vp["size"] = size_prop
